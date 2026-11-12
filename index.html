@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Work Order & Instrument Tracking (Online Cloud)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f1f5f9; margin: 0; padding: 20px; color: #1e293b; }
+    
+    .header { background: #0f172a; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .header h2 { margin: 0; font-size: 20px; }
+    .status-badge { background: #64748b; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #cbd5e1; }
+    .stat-card h3 { margin: 0; font-size: 24px; }
+    .stat-card p { margin: 5px 0 0; font-size: 13px; color: #64748b; font-weight: bold; }
+
+    .form-box { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    .form-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 10px; }
+    input, select, textarea, button { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; }
+    textarea { width: 100%; resize: vertical; height: 60px; margin-bottom: 10px; }
+    .label-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: bold; color: #475569; }
+    .btn-primary { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; width: 100%; padding: 12px; font-size: 15px; grid-column: 1 / -1; }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-bar input { flex: 1; min-width: 250px; background: white; }
+    .filter-bar select { min-width: 180px; background: white; }
+
+    .board { display: grid; gap: 15px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border-left: 6px solid #94a3b8; display: flex; flex-direction: column; justify-content: space-between; }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .tag-pending { background: #fef3c7; color: #b45309; }
+    .tag-onsite { background: #dbeafe; color: #1d4ed8; }
+    .tag-rma { background: #ffedd5; color: #c2410c; }
+    .tag-done { background: #dcfce7; color: #15803d; }
+    .btn-delete { background: #fee2e2; color: #dc2626; border: none; padding: 4px 8px; font-size: 12px; cursor: pointer; border-radius: 4px; }
+    .btn-delete:hover { background: #fecaca; }
+
+    .card h3 { margin: 5px 0 10px; font-size: 17px; color: #0f172a; }
+    .info-row { font-size: 13.5px; margin: 4px 0; color: #334155; }
+    
+    .log-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin: 12px 0; font-size: 12.5px; max-height: 120px; overflow-y: auto; }
+    .log-item { border-bottom: 1px dashed #cbd5e1; padding: 4px 0; }
+    .log-item:last-child { border-bottom: none; }
+    .log-time { color: #64748b; font-size: 11px; }
+    .add-note { display: flex; gap: 5px; margin-bottom: 10px; }
+    .add-note input { flex: 1; padding: 6px 10px; font-size: 13px; }
+    .add-note button { background: #475569; color: white; border: none; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h2>🛠️ ระบบบริหารงาน Service & Instrument Tracking</h2>
+      <span style="font-size: 13px; color: #94a3b8;">Analyzer • Gas Detector • CEMS • RMA</span>
+    </div>
+    <span class="status-badge" id="syncStatus">🟡 กำลังเชื่อมต่อ Cloud...</span>
+  </div>
+
+  <div class="stats" id="statsBoard"></div>
+
+  <div class="form-box">
+    <div class="form-grid">
+      <input type="text" id="woNumber" placeholder="เลขที่ Work Order (เช่น WO-2026-01) *">
+      <input type="text" id="customer" placeholder="ชื่อโรงงาน / ลูกค้า *">
+      <input type="text" id="instrument" placeholder="รุ่นเครื่องมือวัด & S/N (เช่น CEMS / Gas Detector)">
+      <select id="jobType">
+        <option value="ติดตั้ง / Commissioning">ติดตั้ง / Commissioning</option>
+        <option value="ซ่อมหน้างาน (Repair)">ซ่อมหน้างาน (Repair)</option>
+        <option value="ส่งเคลม / RMA">ส่งเคลม / RMA</option>
+        <option value="สอบเทียบ (Calibration)">สอบเทียบ (Calibration)</option>
+        <option value="PM / ตรวจเช็กตามรอบ">PM / ตรวจเช็กตามรอบ</option>
+      </select>
+      <input type="text" id="engineer" placeholder="ช่างผู้รับผิดชอบ">
+      <div class="label-group">
+        📂 วันที่เปิดใบงาน:
+        <input type="date" id="createdDateInput">
+      </div>
+      <div class="label-group">
+        📅 วันที่นัดหมาย / กำหนดเสร็จ:
+        <input type="date" id="dueDate">
+      </div>
+    </div>
+    <textarea id="initialNote" placeholder="รายละเอียดอาการเสีย / ขอบเขตงานจาก Sale / อะไหล่ที่ต้องเตรียม..."></textarea>
+    <button type="button" class="btn-primary" id="btnSubmitOrder">+ เปิดใบงาน Service ใหม่</button>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="🔍 ค้นหาเลขที่ WO, ชื่อโรงงาน, Serial Number, หรือชื่อช่าง...">
+    <select id="statusFilter">
+      <option value="ALL">แสดงทุกสถานะ</option>
+      <option value="รอดำเนินการ">🟡 รอดำเนินการ</option>
+      <option value="กำลังหน้างาน">🔵 กำลังหน้างาน</option>
+      <option value="รออะไหล่ / ส่งเคลม">🟠 รออะไหล่ / ส่งเคลม</option>
+      <option value="ปิดงานสมบูรณ์">🟢 ปิดงานสมบูรณ์</option>
+    </select>
+  </div>
+
+  <div class="board" id="orderBoard"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      databaseURL: "https://service-workorder-app-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    const syncBadge = document.getElementById('syncStatus');
+    let db, ordersRef;
+    let ordersList = [];
+
+    document.getElementById('createdDateInput').valueAsDate = new Date();
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
+      ordersRef = ref(db, 'workOrders');
+
+      onValue(ordersRef, (snapshot) => {
+        syncBadge.textContent = '🟢 เชื่อมต่อ Cloud สำเร็จ';
+        syncBadge.style.background = '#16a34a';
+        const data = snapshot.val();
+        ordersList = [];
+        if (data) {
+          Object.keys(data).forEach(key => {
+            ordersList.unshift({ id: key, ...data[key] });
+          });
+        }
+        renderStats();
+        renderOrders();
+      }, (error) => {
+        syncBadge.textContent = '🔴 ติดสิทธิ์ Firebase Rules';
+        syncBadge.style.background = '#dc2626';
+        alert('ไม่สามารถอ่านข้อมูลจาก Firebase ได้: ' + error.message);
+      });
+    } catch (err) {
+      syncBadge.textContent = '🔴 เชื่อมต่อล้มเหลว';
+      syncBadge.style.background = '#dc2626';
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ Firebase: ' + err.message);
+    }
+
+    function getCurrentTimeStr() {
+      const now = new Date();
+      return now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDateThai(dateStr) {
+      if (!dateStr) return 'ไม่ระบุ';
+      const [year, month, day] = dateStr.split('-');
+      const thaiYear = parseInt(year) + 543;
+      const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+      return `${parseInt(day)} ${months[parseInt(month)-1]} ${thaiYear}`;
+    }
+
+    function renderStats() {
+      const total = ordersList.length;
+      const pending = ordersList.filter(o => o.status === 'รอดำเนินการ').length;
+      const onsite = ordersList.filter(o => o.status === 'กำลังหน้างาน').length;
+      const rma = ordersList.filter(o => o.status === 'รออะไหล่ / ส่งเคลม').length;
+      const done = ordersList.filter(o => o.status === 'ปิดงานสมบูรณ์').length;
+
+      document.getElementById('statsBoard').innerHTML = `
+        <div class="stat-card" style="border-color: #334155;"><h3>${total}</h3><p>งานทั้งหมด</p></div>
+        <div class="stat-card" style="border-color: #f59e0b;"><h3>${pending}</h3><p>🟡 รอดำเนินการ</p></div>
+        <div class="stat-card" style="border-color: #2563eb;"><h3>${onsite}</h3><p>🔵 กำลังหน้างาน</p></div>
+        <div class="stat-card" style="border-color: #ea580c;"><h3>${rma}</h3><p>🟠 รออะไหล่/เคลม</p></div>
+        <div class="stat-card" style="border-color: #16a34a;"><h3>${done}</h3><p>🟢 ปิดงานแล้ว</p></div>
+      `;
+    }
+
+    function renderOrders() {
+      const board = document.getElementById('orderBoard');
+      const searchText = document.getElementById('searchInput').value.toLowerCase();
+      const filterStatus = document.getElementById('statusFilter').value;
+      
+      board.innerHTML = '';
+
+      ordersList.forEach((item) => {
+        const matchStatus = (filterStatus === 'ALL' || item.status === filterStatus);
+        const matchSearch = (
+          item.woNumber.toLowerCase().includes(searchText) ||
+          item.customer.toLowerCase().includes(searchText) ||
+          (item.instrument && item.instrument.toLowerCase().includes(searchText)) ||
+          (item.engineer && item.engineer.toLowerCase().includes(searchText))
+        );
+
+        if (!matchStatus || !matchSearch) return;
+
+        let tagClass = 'tag-pending';
+        let borderColor = '#f59e0b';
+        if (item.status === 'กำลังหน้างาน') { tagClass = 'tag-onsite'; borderColor = '#2563eb'; }
+        if (item.status === 'รออะไหล่ / ส่งเคลม') { tagClass = 'tag-rma'; borderColor = '#ea580c'; }
+        if (item.status === 'ปิดงานสมบูรณ์') { tagClass = 'tag-done'; borderColor = '#16a34a'; }
+
+        const logs = item.logs ? Object.values(item.logs) : [];
+        let logsHtml = logs.length > 0 
+          ? logs.map(l => `<div class="log-item"><span class="log-time">[${l.time}]</span> ${l.text}</div>`).join('')
+          : '<div style="color:#94a3b8; font-style:italic;">ยังไม่มีบันทึกอัปเดตหน้างาน</div>';
+
+        board.innerHTML += `
+          <div class="card" style="border-left-color: ${borderColor};">
+            <div>
+              <div class="card-header">
+                <span class="tag ${tagClass}">${item.status}</span>
+                <button type="button" class="btn-delete" onclick="deleteOrder('${item.id}')">ลบ</button>
+              </div>
+              <h3>${item.woNumber} — ${item.customer}</h3>
+              <div class="info-row"><strong>🔧 เครื่องมือวัด:</strong> ${item.instrument || '-'}</div>
+              <div class="info-row"><strong>📋 ประเภทงาน:</strong> ${item.jobType}</div>
+              <div class="info-row"><strong>👷 ช่างผู้รับผิดชอบ:</strong> ${item.engineer || 'ยังไม่ระบุ'}</div>
+              <div class="info-row"><strong>📂 วันที่เปิดใบงาน:</strong> <span style="color: #0f172a; font-weight: bold;">${formatDateThai(item.createdDate)}</span></div>
+              <div class="info-row"><strong>📅 กำหนดนัดหมาย:</strong> <span style="color: #2563eb; font-weight: bold;">${formatDateThai(item.dueDate)}</span></div>
+              
+              <div class="log-box">${logsHtml}</div>
+            </div>
+
+            <div>
+              <div class="add-note">
+                <input type="text" id="noteInput-${item.id}" placeholder="พิมพ์อัปเดตงาน / เลข Tracking / อะไหล่...">
+                <button type="button" onclick="addNote('${item.id}')">บันทึก</button>
+              </div>
+              <select style="width:100%;" onchange="updateStatus('${item.id}', this.value)">
+                <option value="รอดำเนินการ" ${item.status === 'รอดำเนินการ' ? 'selected' : ''}>🟡 รอดำเนินการ</option>
+                <option value="กำลังหน้างาน" ${item.status === 'กำลังหน้างาน' ? 'selected' : ''}>🔵 กำลังหน้างาน</option>
+                <option value="รออะไหล่ / ส่งเคลม" ${item.status === 'รออะไหล่ / ส่งเคลม' ? 'selected' : ''}>🟠 รออะไหล่ / ส่งเคลม</option>
+                <option value="ปิดงานสมบูรณ์" ${item.status === 'ปิดงานสมบูรณ์' ? 'selected' : ''}>🟢 ปิดงานสมบูรณ์</option>
+              </select>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function addWorkOrder() {
+      const wo = document.getElementById('woNumber').value.trim();
+      const cust = document.getElementById('customer').value.trim();
+      const inst = document.getElementById('instrument').value.trim();
+      const type = document.getElementById('jobType').value;
+      const eng = document.getElementById('engineer').value.trim();
+      const createdDate = document.getElementById('createdDateInput').value;
+      const dueDate = document.getElementById('dueDate').value;
+      const note = document.getElementById('initialNote').value.trim();
+
+      if (!wo || !cust) {
+        alert('กรุณากรอกเลขที่ Work Order และชื่อลูกค้าครับ');
+        return;
+      }
+
+      const timeNow = getCurrentTimeStr();
+      const initialLogs = [{ time: `${formatDateThai(createdDate)} ${timeNow}`, text: 'เปิดใบงานเข้าระบบ' }];
+      if (note) initialLogs.push({ time: `${formatDateThai(createdDate)} ${timeNow}`, text: 'รายละเอียด: ' + note });
+
+      try {
+        await push(ordersRef, {
+          woNumber: wo,
+          customer: cust,
+          instrument: inst,
+          jobType: type,
+          engineer: eng,
+          createdDate: createdDate,
+          dueDate: dueDate,
+          status: 'รอดำเนินการ',
+          logs: initialLogs
+        });
+
+        document.getElementById('woNumber').value = '';
+        document.getElementById('customer').value = '';
+        document.getElementById('instrument').value = '';
+        document.getElementById('engineer').value = '';
+        document.getElementById('dueDate').value = '';
+        document.getElementById('initialNote').value = '';
+        document.getElementById('createdDateInput').valueAsDate = new Date();
+      } catch (error) {
+        alert('บันทึกข้อมูลไม่สำเร็จ (ตรวจสอบแท็บ Rules ใน Firebase): ' + error.message);
+      }
+    }
+
+    document.getElementById('btnSubmitOrder').addEventListener('click', addWorkOrder);
+    document.getElementById('searchInput').addEventListener('keyup', renderOrders);
+    document.getElementById('statusFilter').addEventListener('change', renderOrders);
+
+    window.addNote = async function(id) {
+      const input = document.getElementById(`noteInput-${id}`);
+      const text = input.value.trim();
+      if (!text) return;
+
+      const now = new Date();
+      const timeStr = now.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' }) + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+      const targetOrder = ordersList.find(o => o.id === id);
+      const updatedLogs = targetOrder.logs ? [...Object.values(targetOrder.logs)] : [];
+      updatedLogs.push({ time: timeStr, text: text });
+
+      try {
+        await update(ref(db, `workOrders/${id}`), { logs: updatedLogs });
+      } catch (error) {
+        alert('อัปเดตบันทึกไม่สำเร็จ: ' + error.message);
+      }
+    }
+
+    window.updateStatus = async function(id, newStatus) {
+      const now = new Date();
+      const timeStr = now.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' }) + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+      const targetOrder = ordersList.find(o => o.id === id);
+      const updatedLogs = targetOrder.logs ? [...Object.values(targetOrder.logs)] : [];
+      updatedLogs.push({ time: timeStr, text: `เปลี่ยนสถานะเป็น "${newStatus}"` });
+
+      try {
+        await update(ref(db, `workOrders/${id}`), { status: newStatus, logs: updatedLogs });
+      } catch (error) {
+        alert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message);
+      }
+    }
+
+    window.deleteOrder = async function(id) {
+      if (confirm('ยืนยันการลบใบงานนี้ใช่ไหมครับ?')) {
+        try {
+          await remove(ref(db, `workOrders/${id}`));
+        } catch (error) {
+          alert('ลบข้อมูลไม่สำเร็จ: ' + error.message);
+        }
+      }
+    }
+  </script>
+
+</body>
+</html>
